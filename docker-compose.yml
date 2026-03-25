@@ -1,0 +1,35 @@
+
+services:
+  db:
+    image: postgres:15
+    container_name: cucm_db
+    restart: always
+    environment:
+      # כאן אנחנו מגדירים ל-Postgres מה תהיה הסיסמה שלו
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password123
+      - POSTGRES_DB=cucm_portal
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    container_name: cucm_app
+    restart: always
+    # מריץ את האפליקציה על פורט 8000 בתוך הקונטיינר
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8080:8000" # אתה תיכנס דרך http://localhost:8080
+    environment:
+      # כאן האפליקציה משתמשת בסיסמה שהגדרנו למעלה כדי להתחבר
+      - POSTGRES_URL=postgresql+psycopg2://postgres:password123@db:5432/cucm_portal
+      - SECRET_KEY=0d8531f490bdb73dc7a64240353ae982cb5fb0111bd11dfb7e685e9c78e245ca
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:

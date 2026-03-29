@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 import uuid # הוספנו כדי לטפל ב-UUID בצורה נכונה
 
 from app.db.session import get_db
-from app.models.phone import PhoneMapping
+from app.models.device import PhoneMapping
 from app.core.dependencies import get_current_user, require_operator # הוספנו את get_current_user
 from app.models.user import User, UserRole # הוספנו את UserRole לבדיקת תפקיד
 from app.schemas.phone import PhoneCreate, PhoneResponse

@@ -7,7 +7,7 @@ from app.api.v1.endpoints.users import router as users_router  # נתיב Users
 from app.api.v1.endpoints.sites import router as sites_router
 from app.api.v1.endpoints.phones import router as phones_router  # נתיב Sites
 import app.models.site
-import app.models.phone  # מוודא שמודלים של אתר נטענים לאלמנטים של ORM (מיגרציות ושאילתות)
+import app.models.device  # מוודא שמודלים של אתר נטענים לאלמנטים של ORM (מיגרציות ושאילתות)
 
 app = FastAPI()  # יצירת אינסטנס של FastAPI עבור האפליקציה
 
@@ -18,6 +18,11 @@ app.include_router(sites_router, prefix="/api/v1/sites", tags=["sites"])
 app.include_router(phones_router, prefix="/api/v1/phones", tags=["phones"])
 
 
+
+
+@app.get("/")
+def read_root():
+    return {"message": "welcome to cucm live"}  # נקודת קצה בסיסית שמחזירה הודעת שלום עולם   
 
 @app.get("/health")  # נקודת בדיקת חיים בסיסית
 def haelth_check():

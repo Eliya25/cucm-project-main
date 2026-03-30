@@ -10,7 +10,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from app.db.session import Base
 
 
-class UserRole(str, Enum):
+class UserRole(Enum):
     ADMIN = "admin"
     OPERATOR = "operator"
     VIEWER = "viewer"

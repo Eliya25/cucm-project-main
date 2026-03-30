@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException  # במיוחד להחזר
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.user import User, UserSection
+from app.models.user import User
 from app.models.site import Section
 from app.core.security import hash_password
 from app.core.dependencies import require_admin, require_super_admin

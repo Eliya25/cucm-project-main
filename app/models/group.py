@@ -6,7 +6,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.session import Base
 from app.models.site import Site
-from app.models.user import User, UserRole
+from app.models.roles import UserRole
+
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from app.models.user import User
 
 class Group(Base):
     __tablename__ = "groups"
@@ -19,7 +23,7 @@ class Group(Base):
     classification: Mapped[UserRole] = mapped_column(SAEnum(UserRole), default=UserRole.VIEWER)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
-    creator: Mapped["User"] = relationship()
+    creator: Mapped["User"] = relationship("User", back_populates="created_groups", foreign_keys=[creator_id])
 
 
 

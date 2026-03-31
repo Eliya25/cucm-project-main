@@ -4,10 +4,10 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase  # יצירת session  
 from app.core.config import settings  # קריאת הגדרות DB
 
 # יצירת מנוע SQLAlchemy מבוסס URL מההגדרות
-engine = create_engine(settings.postgres_url)
+engine = create_engine(settings.SQLALCHEMY_DATABASE_URL)
 
 # מאפיין יצירת סשנים
-SessionLocal = sessionmaker(bind=engine)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
 class Base(DeclarativeBase):

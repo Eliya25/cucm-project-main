@@ -11,6 +11,7 @@ from app.models.roles import UserRole
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.site import Section
 
 class Group(Base):
     __tablename__ = "groups"
@@ -25,18 +26,23 @@ class Group(Base):
 
     creator: Mapped["User"] = relationship("User", back_populates="created_groups", foreign_keys=[creator_id])
 
+    members: Mapped[list["User"]] = relationship("User", secondary="user_groups", back_populates="groups")
+
+    section_groups: Mapped[list["SectionGroup"]] = relationship("SectionGroup", back_populates="group", cascade="all, delete-orphan")
 
 
-class SiteGroup(Base):
-    __tablename__ = "site_groups"
+
+class SectionGroup(Base):
+    __tablename__ = "section_groups"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    site_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE"), nullable=False)
+    section_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sections.id", ondelete="CASCADE"), nullable=False)
     group_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("groups.id", ondelete="CASCADE"), nullable=False)
+    is_admin: Mapped[bool] = mapped_column(default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
-    site: Mapped["Site"] = relationship()
-    group: Mapped["Group"] = relationship()
+    section: Mapped["Section"] = relationship()
+    group: Mapped["Group"] = relationship("Group", back_populates="section_groups")
 
 class UserGroup(Base):
     __tablename__ = "user_groups"

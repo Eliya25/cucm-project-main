@@ -26,7 +26,8 @@ class Site(Base):
 
     sections: Mapped[list["Section"]] = relationship(
         "Section",
-        back_populates="sites"
+        back_populates="site",
+        cascade="all, delete-orphan"
     )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
@@ -42,7 +43,7 @@ class Section(Base):
     classification: Mapped["UserRole"] = mapped_column(SAEnum(UserRole), default=UserRole.VIEWER)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
-    site_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sites.id"), nullable=False)
-    site: Mapped[list["Site"]] = relationship("Site", back_populates="sections", foreign_keys=[site_id])
+    site_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE"), nullable=False)
+    site: Mapped["Site"] = relationship("Site", back_populates="sections")
 
     devices: Mapped[list["Device"]] = relationship("Device", back_populates="section", cascade="all, delete-orphan")

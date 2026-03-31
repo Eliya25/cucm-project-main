@@ -32,18 +32,18 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
 
 def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
     #check that is the really the super admin
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role != UserRole.SUPERADMIN:
         raise HTTPException(status_code=403, detail="This action allow only for super admin")
     
     return current_user
 
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role != UserRole.ADMIN:
+    if current_user.role != UserRole.SUPERADMIN:
         raise HTTPException(status_code=403, detail="Admin only")
     return current_user
 
 def require_operator(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role not in [UserRole.ADMIN, UserRole.OPERATOR]:
+    if current_user.role not in [UserRole.SUPERADMIN, UserRole.OPERATOR]:
         raise HTTPException(status_code=403, detail="Operator or Admin only")
     return current_user

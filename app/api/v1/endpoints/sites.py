@@ -27,21 +27,22 @@ def create_site(site_data: SiteCreate, db: Session = Depends(get_db), current_us
 @router.post("/sections", response_model=SectionResponse)
 def create_section(section_data: SectionCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     site = db.query(Site).filter(Site.id == section_data.site_id).first()
+
     if not site:
         raise HTTPException(status_code=404, detail="Site not found!")
     
-    section = Section(name=section_data.name, site_id=section_data.site_id)
-    db.add(section)
+    new_section = Section(**section_data.model_dump())# יצירת אובייקט Section חדש מהנתונים שנשלחו
+    db.add(new_section)
     db.commit()
-    db.refresh(section)
-    return section
+    db.refresh(new_section)
+    return new_section
 
 # --- פונקציות שליפה (מעודכנות עם סינון הרשאות) ---
 
 @router.get("/", response_model=list[SiteResponse])
 def get_sites(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     # 1. אם המשתמש הוא אדמין - הוא רואה הכל
-    if current_user.role == UserRole.ADMIN:
+    if current_user.role == UserRole.SUPERADMIN:
         return db.query(Site).all()
     
     # 2. אם הוא משתמש רגיל - נחזיר רק את האתרים שיש לו הרשאה לפחות לתא אחד בתוכם
@@ -58,7 +59,7 @@ def get_sections(site_id: uuid.UUID, db: Session = Depends(get_db), current_user
         raise HTTPException(status_code=404, detail="Site not found")
 
     # 1. אם אדמין - רואה את כל התאים באתר
-    if current_user.role == UserRole.ADMIN:
+    if current_user.role == UserRole.SUPERADMIN:
         return site.sections
     
     # 2. אם משתמש רגיל - נסנן רק את התאים של האתר הזה שיש לו הרשאה אליהם
@@ -82,12 +83,13 @@ def update_site(site_id: uuid.UUID, site_data: SiteCreate, db: Session = Depends
     db.refresh(site)
     return site
 
-@router.delete("/{site_id}", status_code=204)
+@router.delete("/{site_id}")
 def delete_site(site_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
     site = db.query(Site).filter(Site.id == site_id).first()
+    
     if not site:
         raise HTTPException(status_code=404, detail="Site not found")
 
     db.delete(site)
     db.commit()
-    return None
+    return {"message": "Site deleted successfully"}

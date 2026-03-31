@@ -9,7 +9,8 @@ from app.core.config import settings
 from app.db.session import Base
 import app.models.user
 import app.models.site
-
+import app.models.group
+import app.models.device
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
@@ -19,7 +20,8 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", settings.postgres_url)
+url = settings.SQLALCHEMY_DATABASE_URL.replace("%", "%%")  # כדי להימנע מבעיות עם סימני אחוז בכתובת ה-URL
+config.set_main_option("sqlalchemy.url", url)
 
 
 # add your model's MetaData object here

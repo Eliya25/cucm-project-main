@@ -26,6 +26,7 @@ class Device(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     section: Mapped["Section"] = relationship("Section", back_populates="devices")
+    position: Mapped["DevicePosition"] = relationship("DevicePosition", back_populates="device", uselist=False)
 
 
 class DevicePosition(Base):
@@ -37,6 +38,6 @@ class DevicePosition(Base):
     y_pos: Mapped[float] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
-    device: Mapped["Device"] = relationship()
+    device: Mapped["Device"] = relationship("Device", back_populates="position")
 
     

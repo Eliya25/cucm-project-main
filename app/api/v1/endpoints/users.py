@@ -6,6 +6,7 @@ from app.models.user import User
 from app.core.security import hash_password
 from app.core.dependencies import require_admin, require_super_admin
 from app.schemas.user import UserCreate, UserResponse
+from logger_manager import LoggerManager
 
 
 router = APIRouter()
@@ -32,6 +33,14 @@ def create_user(user_data: UserCreate, db: Session = Depends(get_db), current_us
     db.commit()  # שמירה למסד
     db.refresh(new_user)  # רענון אובייקט עם ID שנוצר
 
+    # Audit logging
+    LoggerManager.log_audit(
+        user=current_user.username,
+        action="CREATE_USER",
+        target=f"User:{new_user.username} (ID:{new_user.id})",
+        details=f"Role: {new_user.role}"
+    )
+
     return new_user  # מוחזר למבקש (נמחקת הסיסמה בגלל מודל response)
 
 
@@ -48,6 +57,9 @@ def update_user(user_id: str, user_data: UserCreate, db: Session = Depends(get_d
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    old_username = user.username
+    old_role = user.role
+
     user.username = user_data.username or user.username
     if user_data.password:
         user.hashed_password = hash_password(user_data.password)
@@ -55,6 +67,22 @@ def update_user(user_id: str, user_data: UserCreate, db: Session = Depends(get_d
 
     db.commit()
     db.refresh(user)
+
+    # Audit logging
+    changes = []
+    if old_username != user.username:
+        changes.append(f"username: {old_username} -> {user.username}")
+    if user_data.password:
+        changes.append("password changed")
+    if old_role != user.role:
+        changes.append(f"role: {old_role} -> {user.role}")
+    
+    LoggerManager.log_audit(
+        user=current_user.username,
+        action="UPDATE_USER",
+        target=f"User:{user.username} (ID:{user.id})",
+        details=f"Changes: {', '.join(changes)}"
+    )
 
     return user
 
@@ -65,6 +93,14 @@ def delete_user(user_id: str, db: Session = Depends(get_db), current_user: User 
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Audit logging before deletion
+    LoggerManager.log_audit(
+        user=current_user.username,
+        action="DELETE_USER",
+        target=f"User:{user.username} (ID:{user.id})",
+        details=f"Role: {user.role}"
+    )
 
     db.delete(user)
     db.commit()

@@ -10,6 +10,7 @@ from app.core.jwt import create_access_token, create_refresh_token  # יצירת
 from app.schemas.auth import TokenResponse  # סכמות של auth
 from app.core.dependencies import get_current_user  # תלות של משתמש מאומת
 from app.core.jwt import decoded_refresh_token, create_access_token
+from logger_manager import LoggerManager
 
 router = APIRouter()  # יצירת ניתוב מודולרי
 
@@ -33,6 +34,14 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
     access_token = create_access_token(data={"sub": str(user.id)})  # יצירת token גישה
     refresh_token = create_refresh_token(data={"sub": str(user.id)})  # יצירת token רענון
+
+    # Audit logging
+    LoggerManager.log_audit(
+        user=user.username,
+        action="LOGIN",
+        target=f"User:{user.username} (ID:{user.id})",
+        details=f"Role: {user.role}"
+    )
 
     return TokenResponse(
         access_token=access_token,

@@ -6,6 +6,8 @@ from app.models.device import DevicePosition, Device
 from app.schemas.device import DeviceCreate, DeviceResponse, DeviceUpdate
 from app.core.dependencies import get_current_user, require_admin # הוספנו את get_current_user
 from app.models.user import User, UserRole # הוספנו את UserRole לבדיקת תפקיד
+from logger_manager import LoggerManager
+
 
 
 
@@ -48,6 +50,15 @@ def create_device(device_data: DeviceCreate, db: Session = Depends(get_db), curr
 
     db.commit()
     db.refresh(new_device)
+
+    # Audit logging
+    LoggerManager.log_audit(
+        user=current_user.username,
+        action="CREATE_DEVICE",
+        target=f"Device:{new_device.identifier} (ID:{new_device.id})",
+        details=f"Section ID: {new_device.section_id}, Classification: {new_device.classification}"
+    )
+
     return new_device
 
 @router.patch("/{device_id}", response_model=DeviceResponse)# פונקציה לעדכון פרטי המכשיר, כולל המיקום שלו
@@ -66,6 +77,9 @@ def update_device(device_id: uuid.UUID, device_data: DeviceUpdate, db: Session =
     
     #השתמשנו ב-model_dump עם exclude_unset כדי לקבל רק את השדות שנשלחו בבקשה לעדכון, וכך נוכל לעדכן רק את השדות האלה מבלי לגעת בשאר השדות של המכשיר
     update_data = device_data.model_dump(exclude_unset=True)
+
+    old_identifier = device.identifier
+    old_classification = device.classification
 
     #עדכון שדות המכשיר הרגילים (identifier ו-classification) רק אם הם נשלחו בבקשה, אם לא הם יישארו ללא שינוי
     for field in ["identifier", "classification"]:
@@ -90,6 +104,24 @@ def update_device(device_id: uuid.UUID, device_data: DeviceUpdate, db: Session =
     
     db.commit()
     db.refresh(device)# רענון האובייקט של המכשיר כדי לקבל את הנתונים המעודכנים מהמסד נתונים אחרי העדכון
+
+    # Audit logging
+    changes = []
+    if old_identifier != device.identifier:
+        changes.append(f"identifier: {old_identifier} -> {device.identifier}")
+    if old_classification != device.classification:
+        changes.append(f"classification: {old_classification} -> {device.classification}")
+    if "x_pos" in update_data or "y_pos" in update_data:
+        changes.append("position updated")
+    
+    if changes:
+        LoggerManager.log_audit(
+            user=current_user.username,
+            action="UPDATE_DEVICE",
+            target=f"Device:{device.identifier} (ID:{device.id})",
+            details=f"Changes: {', '.join(changes)}"
+        )
+
     return device
 
 @router.put("/{device_id}/position")# פונקציה לעדכון מיקום המכשיר, מקבלת את ה-ID של המכשיר ואת הקואורדינטות החדשות (x ו-y) בעזרת פרמטרים של השאילתה
@@ -119,6 +151,15 @@ def update_device_position(device_id: uuid.UUID, x: float, y: float, db: Session
         position.y_pos = y
 
     db.commit()
+
+    # Audit logging
+    LoggerManager.log_audit(
+        user=current_user.username,
+        action="UPDATE_DEVICE_POSITION",
+        target=f"Device:{device.identifier} (ID:{device.id})",
+        details=f"New position: x={x}, y={y}"
+    )
+
     return {"status": "success", "device_id": device_id, "new_position": {"x": x, "y": y}}# נחזיר תגובה עם סטטוס ההצלחה, ה-ID של המכשיר והקואורדינטות החדשות שלו
 
 
@@ -133,6 +174,14 @@ def delete_device(device_id: uuid.UUID, db: Session = Depends(get_db), current_u
     if not current_user.is_admin_of_section(device.section_id):
         raise HTTPException(status_code=403, detail="You don't have permission to delete devices in this section")
     
+    # Audit logging before deletion
+    LoggerManager.log_audit(
+        user=current_user.username,
+        action="DELETE_DEVICE",
+        target=f"Device:{device.identifier} (ID:{device.id})",
+        details=f"Section ID: {device.section_id}, Classification: {device.classification}"
+    )
+
     db.delete(device)
     db.commit()
-    return None
+    return {"message": "Device deleted successfully"}

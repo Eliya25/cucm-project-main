@@ -6,10 +6,19 @@ services:
     restart: always
     env_file:
       - .env
+    environment:
+      - TZ=Asia/Jerusalem
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   web:
     build: .
@@ -23,8 +32,12 @@ services:
       - "8080:8000" # אתה תיכנס דרך http://localhost:8080
     env_file:
       - .env
+    environment:
+      - TZ=Asia/Jerusalem
+      - LOG_TIMEZONE=Asia/Jerusalem
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 volumes:
   postgres_data:

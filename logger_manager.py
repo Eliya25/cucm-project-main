@@ -13,7 +13,8 @@ import os
 import queue
 import shutil
 import threading
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.schemas import user
 
@@ -71,25 +72,25 @@ class LoggerManager:
         # Creates the root logger, queue handler, and size/day rotating file handler.
         log_queue = queue.Queue()
         logger = logging.getLogger()
+        timezone_name = os.getenv("LOG_TIMEZONE", "Asia/Jerusalem")
 
         logger.setLevel(logging.DEBUG)
 
         queue_handler = logging.handlers.QueueHandler(log_queue)
         logger.addHandler(queue_handler)
-        folder_name = date.today().strftime("%d-%m-%Y")
-        log_dir = os.path.join(path_prefix, folder_name)
-
-        os.makedirs(log_dir, exist_ok=True)
 
         file_handler = self.DailyFolderRotatingHandler(
             path_prefix=path_prefix,
             maxBytes=size_mb * 1024 * 1024,
             backupCount=backup_count,
             retention_days=retention_days,
+            timezone_name=timezone_name,
         )
 
-        formatter = logging.Formatter(
-            "[%(levelname)s]-%(asctime)s %(message)s", datefmt="%H:%M:%S"
+        formatter = self.TimezoneFormatter(
+            "[%(levelname)s]-%(asctime)s %(message)s",
+            datefmt="%H:%M:%S",
+            timezone_name=timezone_name,
         )
 
         file_handler.setFormatter(formatter)
@@ -98,11 +99,29 @@ class LoggerManager:
 
         return logger, listener
 
+    class TimezoneFormatter(logging.Formatter):
+        def __init__(self, fmt=None, datefmt=None, timezone_name="Asia/Jerusalem"):
+            super().__init__(fmt=fmt, datefmt=datefmt)
+            self.timezone = self._resolve_timezone(timezone_name)
+
+        def _resolve_timezone(self, timezone_name):
+            try:
+                return ZoneInfo(timezone_name)
+            except ZoneInfoNotFoundError:
+                return datetime.now().astimezone().tzinfo
+
+        def formatTime(self, record, datefmt=None):
+            dt = datetime.fromtimestamp(record.created, tz=self.timezone)
+            if datefmt:
+                return dt.strftime(datefmt)
+            return dt.isoformat()
+
     class DailyFolderRotatingHandler(logging.handlers.RotatingFileHandler):
 
-        def __init__(self, path_prefix, maxBytes, backupCount, retention_days):
+        def __init__(self, path_prefix, maxBytes, backupCount, retention_days, timezone_name):
             self.path_prefix = path_prefix
-            self.current_date = date.today().strftime("%d-%m-%Y")
+            self.timezone = self._resolve_timezone(timezone_name)
+            self.current_date = self._now().strftime("%d-%m-%Y")
             self.retention_days = retention_days
             self.log_dir = self._get_log_dir()
             os.makedirs(self.log_dir, exist_ok=True)
@@ -110,6 +129,15 @@ class LoggerManager:
             super().__init__(filename, maxBytes=maxBytes, backupCount=backupCount)
             self._cleanup_old_logs()
             self._trigger_cleanup_thread()
+
+        def _resolve_timezone(self, timezone_name):
+            try:
+                return ZoneInfo(timezone_name)
+            except ZoneInfoNotFoundError:
+                return datetime.now().astimezone().tzinfo
+
+        def _now(self):
+            return datetime.now(self.timezone)
 
         def _trigger_cleanup_thread(self):
             cleanup_thread = threading.Thread(target=self._cleanup_old_logs, daemon=True)
@@ -122,7 +150,7 @@ class LoggerManager:
             if not os.path.exists(base_dir):
                 return
 
-            cutoff = datetime.now() - timedelta(days=self.retention_days)
+            cutoff_date = (self._now() - timedelta(days=self.retention_days)).date()
 
             for folder in os.listdir(base_dir):
                 folder_path = os.path.join(base_dir, folder)
@@ -135,7 +163,7 @@ class LoggerManager:
                 except ValueError:
                     continue
 
-                if folder_date < cutoff:
+                if folder_date.date() < cutoff_date:
                     shutil.rmtree(folder_path)
 
         def _get_log_dir(self):
@@ -143,7 +171,7 @@ class LoggerManager:
 
         def _update_date_if_needed(self):
             # Switches the output file when the calendar day changes.
-            new_date = date.today().strftime('%d-%m-%Y')
+            new_date = self._now().strftime('%d-%m-%Y')
             if new_date != self.current_date:
                 self.current_date = new_date
                 self.log_dir = self._get_log_dir()

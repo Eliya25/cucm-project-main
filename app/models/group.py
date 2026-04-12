@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.site import Section
+    from app.models.site import Site
 
 class Group(Base):
     __tablename__ = "groups"
@@ -29,6 +30,8 @@ class Group(Base):
     members: Mapped[list["User"]] = relationship("User", secondary="user_groups", back_populates="groups")
 
     section_groups: Mapped[list["SectionGroup"]] = relationship("SectionGroup", back_populates="group", cascade="all, delete-orphan")
+    sites: Mapped[list["Site"]] = relationship("Site", back_populates="group", cascade="all, delete-orphan")
+    user_groups_links: Mapped[list["UserGroup"]] = relationship("UserGroup", back_populates="group", overlaps="groups,members")
 
 
 
@@ -55,5 +58,5 @@ class UserGroup(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     # קשר לטבלאות המשתמשים והקבוצות
-    user: Mapped["User"] = relationship()
-    group: Mapped["Group"] = relationship()
+    user: Mapped["User"] = relationship(back_populates="user_groups_links", overlaps="groups, members")
+    group: Mapped["Group"] = relationship(back_populates="user_groups_links", overlaps="groups, members")

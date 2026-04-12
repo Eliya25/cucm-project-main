@@ -2,8 +2,10 @@ from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import JWTError
+import uuid
 
 from app.db.session import get_db
+from app.models.group import SectionGroup, UserGroup
 from app.models.user import User, UserRole
 from app.core.jwt import decode_access_token
 
@@ -47,3 +49,15 @@ def require_operator(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role not in [UserRole.SUPERADMIN, UserRole.OPERATOR]:
         raise HTTPException(status_code=403, detail="Operator or Admin only")
     return current_user
+
+def validate_section_access(section_id: uuid.UUID, user: User, db: Session):
+    
+    if user.role == UserRole.SUPERADMIN:
+        return True
+    
+    has_access = db.query(SectionGroup).join(UserGroup, SectionGroup.group_id == UserGroup.group_id).filter(UserGroup.user_id == user.id, SectionGroup.section_id == section_id).first()
+    
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    return True

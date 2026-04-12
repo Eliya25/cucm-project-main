@@ -14,6 +14,7 @@ from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 if TYPE_CHECKING:
     from app.models.device import Device
+    from app.models.group import Group
     
     
 
@@ -30,6 +31,8 @@ class Site(Base):
         cascade="all, delete-orphan"
     )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+    group_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("groups.id"), nullable=False)
+    group: Mapped["Group"] = relationship("Group", back_populates="sites")
 
 
 class Section(Base):

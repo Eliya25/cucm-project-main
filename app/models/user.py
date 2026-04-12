@@ -8,9 +8,10 @@ from sqlalchemy.dialects.postgresql import UUID
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.models.group import Group
+    from app.models.group import UserGroup
+from app.db.session import Base
 from app.models.roles import UserRole
 
-from app.db.session import Base
 
 
 
@@ -27,7 +28,9 @@ class User(Base):
 
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
     
-    groups: Mapped[list["Group"]] = relationship("Group", secondary="user_groups", back_populates="members")
+    groups: Mapped[list["Group"]] = relationship("Group", secondary="user_groups", back_populates="members", overlaps="user, group")
+    
+    user_groups_links: Mapped[list["UserGroup"]] = relationship("UserGroup", back_populates="user", overlaps="groups, members")
 
     @property
     def allowed_sections(self) -> list:
@@ -38,8 +41,8 @@ class User(Base):
 
         sections = []
 
-        for group in self.groups:
-            for section_group in group.section_groups:
+        for link in self.user_groups_links:
+            for section_group in link.group.section_groups:
                 sections.append(section_group.section)
         
         return list(set(sections))
@@ -51,8 +54,8 @@ class User(Base):
         if self.role == UserRole.SUPERADMIN:
             return True
 
-        for group in self.groups:
-            for section_group in group.section_groups:
+        for link in self.user_groups_links:
+            for section_group in link.group.section_groups:
                 if section_group.section_id == section_id and section_group.is_admin:
                     return True
         

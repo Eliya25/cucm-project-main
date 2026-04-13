@@ -34,6 +34,15 @@ class User(Base):
 
     @property
     def allowed_sections(self) -> list:
+        
+        if self.role == UserRole.SUPERADMIN:
+            from app.db.session import SessionLocal
+            from app.models.site import Section
+            db = SessionLocal()
+            try: 
+                return db.query(Section).all()
+            finally:
+                db.close()
 
         # This property calculates the sections that the user has access to based on the groups they belong to. It iterates through each group the user is a member of, 
         # and for each group, it collects the sections associated with that group through the section_groups relationship. 

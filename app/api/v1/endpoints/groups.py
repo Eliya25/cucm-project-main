@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.group import Group, SectionGroup, UserGroup
+from app.models.roles import UserRole
 from app.schemas.group import GroupCreate, GroupResponse, UserGroupCreate
 from app.core.dependencies import require_admin, get_current_user
 from app.models.user import User
@@ -34,6 +35,11 @@ def create_group(group_data: GroupCreate, db: Session = Depends(get_db), current
     new_group = Group(**group_data.model_dump(), creator_id=current_user.id) # יצירת אובייקט Group חדש מהנתונים שנשלחו והוספת ה-creator_id
 
     db.add(new_group)
+    db.flush()  # שליחת השינויים למסד נתונים כדי לקבל את ה-ID של הקבוצה החדשה לפני החזרת התשובה ולוודא שהמידע מעודכן לפני החזרת התשובה  
+    
+    new_membership = UserGroup(user_id=current_user.id, group_id=new_group.id) # יצירת קשר בין המשתמש היוצר לקבוצה החדשה בטבלת UserGroup
+    db.add(new_membership)
+    
     db.commit()
     db.refresh(new_group)
 
@@ -42,7 +48,7 @@ def create_group(group_data: GroupCreate, db: Session = Depends(get_db), current
         user=current_user.username,
         action="CREATE_GROUP",
         target=f"Group:{new_group.name} (ID:{new_group.id})",
-        details=f"Description: {new_group.description}"
+        details=f"Description: {new_group.description} User: {current_user.username} (ID:{current_user.id})"
     )
 
     return new_group
@@ -95,5 +101,9 @@ def link_group_to_site(site_id: uuid.UUID, group_id: uuid.UUID, db: Session = De
     return {"detail": "Group linked to site successfully"}
 
 @router.get("/me", response_model=list[GroupResponse])
-def get_my_groups(current_user: User = Depends(get_current_user)):
+def get_my_groups(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    
+    if current_user.role == UserRole.SUPERADMIN:
+        return db.query(Group).all()
+    
     return current_user.groups

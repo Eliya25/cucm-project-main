@@ -5,7 +5,7 @@ from urllib.parse import quote_plus
 class Settings(BaseSettings):
     SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINTUES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     SUPER_ADMIN_USERNAME: str  

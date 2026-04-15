@@ -6,6 +6,11 @@ from app.models.site import Site, Section
 from app.models.group import Group, UserGroup, SectionGroup
 from app.models.device import Device, DevicePosition
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 def create_super_admin():
     db = SessionLocal()
     try:
@@ -16,8 +21,8 @@ def create_super_admin():
             return
         
         super_admin = User (
-            username="superadmin",
-            hashed_password=hash_password("superadminzaq12wsx!!"),
+            username=os.getenv("SUPER_ADMIN_USERNAME"),
+            hashed_password=hash_password(os.getenv("SUPER_ADMIN_PASSWORD")),
             is_active=True,
             role=UserRole.SUPERADMIN
         )

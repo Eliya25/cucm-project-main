@@ -4,6 +4,13 @@ from urllib.parse import quote_plus
 # מחלקה לקריאת הגדרות מסביבת העבודה (ENV). Pydantic עושה את כל העבודה.
 class Settings(BaseSettings):
     SECRET_KEY: str
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    SUPER_ADMIN_USERNAME: str  
+    SUPER_ADMIN_PASSWORD: str
+
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_SERVER: str

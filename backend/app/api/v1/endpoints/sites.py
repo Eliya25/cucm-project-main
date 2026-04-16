@@ -62,7 +62,7 @@ def create_section(section_data: SectionCreate, db: Session = Depends(get_db), c
 # --- פונקציות שליפה (מעודכנות עם סינון הרשאות) ---
 
 @router.get("/", response_model=list[SiteResponse])
-def get_sites(db: Session = Depends(get_db), ):
+def get_sites(db: Session = Depends(get_db),):
     
     # 1. אם המשתמש הוא אדמין - הוא רואה הכל
     

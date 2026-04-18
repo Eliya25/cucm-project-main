@@ -48,12 +48,12 @@ def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
 
 def require_admin(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role != UserRole.SUPERADMIN:
-        raise HTTPException(status_code=403, detail="Admin only")
+        raise HTTPException(status_code=403, detail="Super Admin only")
     return current_user
 
 def require_operator(current_user: User = Depends(get_current_user)) -> User:
     if current_user.role not in [UserRole.SUPERADMIN, UserRole.OPERATOR]:
-        raise HTTPException(status_code=403, detail="Operator or Admin only")
+        raise HTTPException(status_code=403, detail="Operator or Super Admin only")
     return current_user
 
 def validate_section_access(section_id: uuid.UUID, user: User, db: Session):

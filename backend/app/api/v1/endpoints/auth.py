@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException  # נתיבי API וטעינת תלות
+from fastapi import APIRouter, Depends, HTTPException, Response  # נתיבי API וטעינת תלות
 from sqlalchemy.orm import Session  # טיפוס session ל-DB
 from fastapi.security import OAuth2PasswordRequestForm  # פורמט בקשת התחברות OAuth2
 from jose import JWTError
@@ -15,17 +15,14 @@ from logger_manager import LoggerManager
 router = APIRouter()  # יצירת ניתוב מודולרי
 
 
-@router.post("/login", response_model=TokenResponse)
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+@router.post("/login")
+def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+
     # מחפש משתמש במאגר לפי שם משתמש
     user = db.query(User).filter(User.username == form_data.username).first()
 
-    if not user:
+    if not user or not verify_password(form_data.password, user.hashed_password):
         # לא נמצא משתמש מתאום
-        raise HTTPException(status_code=401, detail="Wrong username or password")
-
-    if not verify_password(form_data.password, user.hashed_password):
-        # סיסמה אינה נכונה
         raise HTTPException(status_code=401, detail="Wrong username or password")
 
     if not user.is_active:
@@ -35,6 +32,11 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     access_token = create_access_token(data={"sub": str(user.id)})  # יצירת token גישה
     refresh_token = create_refresh_token(data={"sub": str(user.id)})  # יצירת token רענון
 
+
+    response.set_cookie(key="access_token", value=access_token, httponly=True, max_age=3600, secure=False, samesite="lax")  # שמירת token גישה בעוגייה  
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, max_age=86400 * 7, secure=False, samesite="strict")  # שמירת token רענון בעוגייה   
+
+
     # Audit logging
     LoggerManager.log_audit(
         user=user.username,
@@ -43,10 +45,12 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         details=f"Role: {user.role}"
     )
 
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token
-    )
+    return {
+        'access_token': access_token,
+        'token_type': 'bearer',
+        'role': user.role,
+        'username': user.username
+    }
 
 @router.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
@@ -84,3 +88,10 @@ def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
         )
     except JWTError:
         raise HTTPException(status_code=401, detail="Refresh token expired or invalid")
+    
+
+@router.post("/logout")
+def logout(response: Response):
+    response.delete_cookie("access_token")
+    response.delete_cookie("refresh_token")
+    return {"message": "Logged out successfully"}

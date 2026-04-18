@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from jose import JWTError
@@ -12,7 +12,13 @@ from app.core.jwt import decode_access_token
 #מה שמפעיל את הכפתור בעצם שמבקש ממני טוקן כדי לאשר שאני
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+async def get_current_user(request: Request, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+
+    token = request.cookies.get("access_token") or token  # קודם מנסה לקבל את הטוקן מהעוגייה, אם לא קיים אז מהכותרת Authorization
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
     try:
         payload = decode_access_token(token)
         user_id = payload.get("sub")

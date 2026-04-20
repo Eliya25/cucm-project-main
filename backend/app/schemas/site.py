@@ -1,6 +1,7 @@
 import uuid
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
+from typing import Optional
 from app.models.roles import UserRole
 
 
@@ -24,7 +25,10 @@ class SiteResponse(SiteBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-
+class SiteUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    group_id: Optional[uuid.UUID] = None
 
 class SectionBase(BaseModel):
     name: str

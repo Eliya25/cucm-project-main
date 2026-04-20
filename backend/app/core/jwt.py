@@ -23,8 +23,15 @@ def decode_access_token(token: str) -> dict:
         raise JWTError("Invalid token type")
     return payload
 
-def decoded_refresh_token(token:str) -> dict:
+def decode_refresh_token(token:str) -> dict:
     payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
     if payload.get("type") != "refresh":
         raise JWTError("Invalid token type")
     return payload
+
+
+decoded_refresh_token = decode_refresh_token
+
+def get_token_expire(token:str) -> datetime:
+    payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    return datetime.utcfromtimestamp(payload['exp'])

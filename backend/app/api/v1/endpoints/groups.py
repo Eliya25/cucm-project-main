@@ -5,7 +5,7 @@ from app.db.session import get_db
 from app.models.group import Group, SectionGroup, UserGroup
 from app.models.roles import UserRole
 from app.schemas.group import GroupCreate, GroupResponse, UserGroupCreate
-from app.core.dependencies import require_admin, get_current_user
+from app.core.dependencies import get_current_user, require_super_admin
 from app.models.user import User
 from logger_manager import LoggerManager
 
@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 @router.post("/link-section")
-def link_group_to_section(section_id: uuid.UUID, group_id: uuid.UUID, is_admin: bool = False,  db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def link_group_to_section(section_id: uuid.UUID, group_id: uuid.UUID, is_admin: bool = False,  db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
     # בדיקה אם הקישור כבר קיים בין הקבוצה לתא, ואם כן - עדכון סטטוס האדמין שלו בהתאם לפרמטר שנשלח, ואם לא - יצירת הקישור עם הסטטוס המתאים
     existing = db.query(SectionGroup).filter(SectionGroup.section_id == section_id, SectionGroup.group_id == group_id).first()
 
@@ -30,7 +30,7 @@ def link_group_to_section(section_id: uuid.UUID, group_id: uuid.UUID, is_admin: 
     return {"detail": "Group linked to section successfully"}
 
 @router.post("/", response_model=GroupResponse)
-def create_group(group_data: GroupCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def create_group(group_data: GroupCreate, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
 
     new_group = Group(**group_data.model_dump(), creator_id=current_user.id) # יצירת אובייקט Group חדש מהנתונים שנשלחו והוספת ה-creator_id
 
@@ -55,7 +55,7 @@ def create_group(group_data: GroupCreate, db: Session = Depends(get_db), current
 
 
 @router.post("/add_user")
-def add_user_to_group(data: UserGroupCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def add_user_to_group(data: UserGroupCreate, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
     # בדיקה אם המשתמש והקבוצה קיימים, ואם כן - יצירת הקשר ביניהם בטבלת UserGroup, ואם לא - החזרת שגיאה מתאימה
     user_exists = db.query(User).filter(User.id == data.user_id).first()
     # בדיקה אם הקבוצה קיימת, אם לא - החזרת שגיאה מתאימה
@@ -92,7 +92,7 @@ def add_user_to_group(data: UserGroupCreate, db: Session = Depends(get_db), curr
 
 
 @router.post("/link-site")
-def link_group_to_site(site_id: uuid.UUID, group_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def link_group_to_site(site_id: uuid.UUID, group_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
 
     new_link = SectionGroup(site_id=site_id, group_id=group_id)
 

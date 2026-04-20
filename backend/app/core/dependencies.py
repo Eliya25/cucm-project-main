@@ -5,22 +5,23 @@ from jose import JWTError
 import uuid
 
 from app.db.session import get_db
-from app.models.group import SectionGroup, UserGroup
-from app.models.user import User, UserRole
+from app.models.user import User
+from app.models.roles import UserRole
 from app.core.jwt import decode_access_token
 
 #מה שמפעיל את הכפתור בעצם שמבקש ממני טוקן כדי לאשר שאני
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False) # auto_error=False כדי לאפשר לנו לנסות לקבל את הטוקן גם מהעוגייה ולא רק מהכותרת Authorization
 
 async def get_current_user(request: Request, token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
 
-    token = request.cookies.get("access_token") or token  # קודם מנסה לקבל את הטוקן מהעוגייה, אם לא קיים אז מהכותרת Authorization
+    cookie_token = request.cookies.get("access_token")  # קודם מנסה לקבל את הטוקן מהעוגייה, אם לא קיים אז מהכותרת Authorization
+    resolved_token = token or cookie_token  # אם הטוקן לא נמצא בכותרת, ננסה מהעוגייה
 
-    if not token:
+    if not resolved_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     try:
-        payload = decode_access_token(token)
+        payload = decode_access_token(resolved_token)
         user_id = payload.get("sub")
 
         if not user_id:
@@ -41,23 +42,28 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
 def require_super_admin(current_user: User = Depends(get_current_user)) -> User:
     #check that is the really the super admin
     if current_user.role != UserRole.SUPERADMIN:
-        raise HTTPException(status_code=403, detail="This action allow only for super admin")
+        raise HTTPException(status_code=403, detail="SuperAdmin access required")
+    
+    return current_user
+
+def require_admin(current_user: User = Depends(get_current_user)) -> User:
+    if current_user.role not in [UserRole.SUPERADMIN, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Admin or Super Admin access required")
     
     return current_user
 
 def require_operator(current_user: User = Depends(get_current_user)) -> User:
-    if current_user.role not in [UserRole.SUPERADMIN, UserRole.OPERATOR]:
-        raise HTTPException(status_code=403, detail="Operator or Super Admin only")
+    if current_user.role not in [UserRole.SUPERADMIN, UserRole.OPERATOR, UserRole.ADMIN]:
+        raise HTTPException(status_code=403, detail="Operator access required")
     return current_user
 
-def validate_section_access(section_id: uuid.UUID, user: User, db: Session):
+def validate_section_access(section_id: uuid.UUID, user: User, db: Session) -> bool:
     
-    if user.role == UserRole.SUPERADMIN:
+    if user.role in [UserRole.SUPERADMIN, UserRole.ADMIN]:
         return True
     
-    has_access = db.query(SectionGroup).join(UserGroup, SectionGroup.group_id == UserGroup.group_id).filter(UserGroup.user_id == user.id, SectionGroup.section_id == section_id).first()
     
-    if not has_access:
-        raise HTTPException(status_code=403, detail="Access denied")
+    if not user.has_section_access(section_id):
+        raise HTTPException(status_code=403, detail="Access denied to this section")
     
     return True

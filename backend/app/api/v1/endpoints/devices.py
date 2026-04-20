@@ -4,7 +4,7 @@ import uuid # הוספנו כדי לטפל ב-UUID בצורה נכונה
 from app.db.session import get_db
 from app.models.device import DevicePosition, Device
 from app.schemas.device import DeviceCreate, DeviceResponse, DeviceUpdate
-from app.core.dependencies import get_current_user, require_admin # הוספנו את get_current_user
+from app.core.dependencies import get_current_user # הוספנו את get_current_user
 from app.models.user import User, UserRole # הוספנו את UserRole לבדיקת תפקיד
 from logger_manager import LoggerManager
 

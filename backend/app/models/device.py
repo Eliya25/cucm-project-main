@@ -7,8 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 
 from app.db.session import Base
-from app.models.site import Section
-from app.models.user import UserRole
+from app.models.roles import UserRole
 
 
 
@@ -26,7 +25,7 @@ class Device(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     section: Mapped["Section"] = relationship("Section", back_populates="devices")
-    position: Mapped["DevicePosition"] = relationship("DevicePosition", back_populates="device", uselist=False)
+    position: Mapped["DevicePosition"] = relationship("DevicePosition", back_populates="device", uselist=False, cascade="all, delete-orphan")
 
 
 class DevicePosition(Base):
@@ -34,10 +33,14 @@ class DevicePosition(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     device_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("devices.id", ondelete="CASCADE"), unique=True, nullable=False)
-    x_pos: Mapped[float] = mapped_column(nullable=False)
-    y_pos: Mapped[float] = mapped_column(nullable=False)
+    x_pos: Mapped[float] = mapped_column(nullable=False, default=0.0)
+    y_pos: Mapped[float] = mapped_column(nullable=False, default=0.0)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
 
     device: Mapped["Device"] = relationship("Device", back_populates="position")
+
+
+# import בתחתית למניעת circular import
+from app.models.site import Section
 
     

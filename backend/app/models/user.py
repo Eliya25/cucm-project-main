@@ -1,16 +1,18 @@
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import String, Boolean, func
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from app.models.group import Group
-    from app.models.group import UserGroup
+
 from app.db.session import Base
 from app.models.roles import UserRole
+
+
+if TYPE_CHECKING:
+    from app.models.group import UserGroup, Group
 
 
 
@@ -23,11 +25,11 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(SAEnum(UserRole), default=UserRole.VIEWER, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Groups this user has created
-    created_groups: Mapped[list["Group"]] = relationship("Group", back_populates="creator")
-
     created_at: Mapped[datetime] = mapped_column(server_default=func.now(), nullable=False)
+     # Groups this user has created
+    created_groups: Mapped[list["Group"]] = relationship("Group", back_populates="creator")
     
+    # Groups this user belongs to (many-to-many via user_groups)
     groups: Mapped[list["Group"]] = relationship("Group", secondary="user_groups", back_populates="members", overlaps="user, group")
     
     user_groups_links: Mapped[list["UserGroup"]] = relationship("UserGroup", back_populates="user", overlaps="groups, members")
@@ -35,37 +37,41 @@ class User(Base):
     @property
     def allowed_sections(self) -> list:
         
-        if self.role == UserRole.SUPERADMIN:
-            from backend.app.db.session import SessionLocal
-            from backend.app.models.site import Section
-            db = SessionLocal()
-            try: 
-                return db.query(Section).all()
-            finally:
-                db.close()
-
-        # This property calculates the sections that the user has access to based on the groups they belong to. It iterates through each group the user is a member of, 
-        # and for each group, it collects the sections associated with that group through the section_groups relationship. 
-        # Finally, it returns a unique list of sections that the user has access to.
 
         sections = []
+        seen_ids  =set()
 
         for link in self.user_groups_links:
+            if link.group is None:
+                continue
             for section_group in link.group.section_groups:
-                sections.append(section_group.section)
+                if section_group.section_id not in seen_ids:
+                    seen_ids.add(section_group.section_id)
+                    sections.append(section_group.section)
         
-        return list(set(sections))
+        return sections
+    
+    @property
+    def allowed_sections_ids(self) -> set[uuid.UUID]:
+
+        return {section.id for section in self.allowed_sections}
     
     def is_admin_of_section(self, section_id: uuid.UUID) -> bool:
-        # This method checks if the user has admin privileges for a specific section. It iterates through the groups the user belongs to and checks if any of those groups have admin rights for the given section ID. 
-        # If it finds a match, it returns True, indicating that the user is an admin of that section; otherwise, it returns False.
-
-        if self.role == UserRole.SUPERADMIN:
+        
+        if self.role == [UserRole.SUPERADMIN, UserRole.ADMIN]:
             return True
-
+        
         for link in self.user_groups_links:
+            if link.group is None:
+                continue
             for section_group in link.group.section_groups:
                 if section_group.section_id == section_id and section_group.is_admin:
                     return True
-        
         return False
+    
+       
+    
+    def has_section_access(self, section_id: uuid.UUID) -> bool:
+        if self.role in [UserRole.SUPERADMIN, UserRole.ADMIN]:
+            return True
+        return section_id in self.allowed_sections_ids

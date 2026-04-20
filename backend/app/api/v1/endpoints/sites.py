@@ -5,9 +5,9 @@ import uuid # הוספנו כדי לטפל ב-UUID בצורה נכונה
 
 from app.db.session import get_db
 from app.models.site import Site, Section
-from app.core.dependencies import require_admin, get_current_user, require_super_admin # הוספנו את get_current_user
+from app.core.dependencies import get_current_user, require_super_admin # הוספנו את get_current_user
 from app.models.user import User, UserRole # הוספנו את UserRole לבדיקת תפקיד
-from app.schemas.site import SiteCreate, SiteResponse, SectionCreate, SectionResponse
+from app.schemas.site import SiteCreate, SiteResponse, SectionCreate, SectionResponse, SiteUpdate
 from logger_manager import LoggerManager
 
 router = APIRouter()
@@ -15,7 +15,7 @@ router = APIRouter()
 # --- פונקציות יצירה (נשארות רק ל-Admin) ---
 
 @router.post("/", response_model=SiteResponse)
-def create_site(site_data: SiteCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def create_site(site_data: SiteCreate, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
     
     existing = db.query(Site).filter(Site.name == site_data.name).first()
     
@@ -38,7 +38,7 @@ def create_site(site_data: SiteCreate, db: Session = Depends(get_db), current_us
     return site
 
 @router.post("/sections", response_model=SectionResponse)
-def create_section(section_data: SectionCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
+def create_section(section_data: SectionCreate, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
     site = db.query(Site).filter(Site.id == section_data.site_id).first()
 
     if not site:
@@ -62,12 +62,13 @@ def create_section(section_data: SectionCreate, db: Session = Depends(get_db), c
 # --- פונקציות שליפה (מעודכנות עם סינון הרשאות) ---
 
 @router.get("/", response_model=list[SiteResponse])
-def get_sites(db: Session = Depends(get_db),):
+def get_sites(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     
     # 1. אם המשתמש הוא אדמין - הוא רואה הכל
-    
+    # if current_user.role == UserRole.SUPERADMIN:
 
-    return db.query(Site).all()
+    if current_user.role == UserRole.VIEWER:
+        return db.query(Site).all()
     
     # 2. אם המשתמש הוא רגיל - הוא רואה רק את האתרים שיש לו גישה אליהם דרך הקבוצות שלו
     # user_group_ids = {link.group_id for link in current_user.user_groups_links}
@@ -106,7 +107,7 @@ def get_sections(site_id: uuid.UUID, db: Session = Depends(get_db), current_user
 
 
 @router.patch("/{site_id}", response_model=SiteResponse)
-def update_site(site_id: uuid.UUID, site_data: SiteCreate, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
+def update_site(site_id: uuid.UUID, site_data: SiteUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
     # רק סופר אדמין יכול לעדכן את פרטי האתר, כולל השם והתיאור שלו. הפונקציה מקבלת את מזהה האתר והנתונים החדשים לעדכון, ומבצעת את העדכון במסד הנתונים. בנוסף, מתבצע רישום של הפעולה ביומן הבקרה (audit log) עם פרטי השינויים שנעשו.
     site = db.query(Site).filter(Site.id == site_id).first()
     # אם האתר לא נמצא, מחזירים שגיאה מתאימה. לאחר העדכון, מתבצע רישום של הפעולה ביומן הבקרה (audit log) עם פרטי השינויים שנעשו, כולל השם והתיאור הישנים והחדשים של האתר. לבסוף, הפונקציה מחזירה את פרטי האתר המעודכנים.
@@ -116,6 +117,11 @@ def update_site(site_id: uuid.UUID, site_data: SiteCreate, db: Session = Depends
     # שמירת הערכים הישנים לצורך רישום השינויים ביומן הבקרה
     old_name = site.name
     old_description = site.description
+
+    update_dict = site_data.model_dump(exclude_unset=True)
+
+    for key, value in update_dict.items():
+        setattr(site, key, value)
 
     # עדכון פרטי האתר עם הנתונים החדשים שנשלחו (אם הם לא None)
     site.name = site_data.name or site.name

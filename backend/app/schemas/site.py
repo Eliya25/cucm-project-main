@@ -1,10 +1,13 @@
 import uuid
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
-from typing import Optional
 from app.models.roles import UserRole
 
 
+# ══════════════════════════════════════════
+#  SITE
+# ══════════════════════════════════════════
+ 
 
 
 class SiteBase(BaseModel):
@@ -14,6 +17,11 @@ class SiteBase(BaseModel):
 #שאני יוצר את האתר רק שם ותיאור ישלחו לי
 class SiteCreate(SiteBase):
     group_id: uuid.UUID
+
+
+class SiteUpdate(SiteBase):
+    name: str | None = None
+    description: str | None = None
 
 #מה שאני מחזיר 
 class SiteResponse(SiteBase):
@@ -25,10 +33,10 @@ class SiteResponse(SiteBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-class SiteUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    group_id: Optional[uuid.UUID] = None
+# ══════════════════════════════════════════
+#  SECTION
+# ══════════════════════════════════════════
+
 
 class SectionBase(BaseModel):
     name: str
@@ -39,6 +47,11 @@ class SectionBase(BaseModel):
 #שיוצרים SESSION חייבים להגיד לאיזה SITE הוא שייך דרך SITE_ID
 class SectionCreate(SectionBase):
     site_id: uuid.UUID
+
+class SectionUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    classification: UserRole | None = None
 
 #מה שאני מחזרי כתגובה
 class SectionResponse(SectionBase):

@@ -1,16 +1,17 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
 
-from backend.app.core.config import settings
-from backend.app.db.session import Base
-import backend.app.models.user
-import backend.app.models.site
-import backend.app.models.group
-import backend.app.models.device
+from app.core.config import settings
+from app.db.session import Base
+
+import app.models.user
+import app.models.site
+import app.models.group
+import app.models.device
+import app.models.token_blacklist
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config

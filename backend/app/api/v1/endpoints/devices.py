@@ -1,11 +1,13 @@
+import uuid # הוספנו כדי לטפל ב-UUID בצורה נכונה
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
-import uuid # הוספנו כדי לטפל ב-UUID בצורה נכונה
+
 from app.db.session import get_db
 from app.models.device import DevicePosition, Device
+from app.models.roles import UserRole
 from app.schemas.device import DeviceCreate, DeviceResponse, DeviceUpdate
-from app.core.dependencies import get_current_user # הוספנו את get_current_user
-from app.models.user import User, UserRole # הוספנו את UserRole לבדיקת תפקיד
+from app.core.dependencies import get_current_user, require_operator # הוספנו את get_current_user
+from app.models.user import User
 from logger_manager import LoggerManager
 
 
@@ -23,28 +25,50 @@ def get_devices(db: Session = Depends(get_db), current_user: User = Depends(get_
     query = db.query(Device).options(joinedload(Device.section))
 
     #check if the user allowed to see this section
-    if current_user.role == UserRole.SUPERADMIN:
+    if current_user.role in [UserRole.SUPERADMIN, UserRole.ADMIN]: # אפשר גם לאפשר למנהלים לראות את כל המכשירים, לפי הצורך  
        return query.all()
     
-    #אם המשתמש לא אדמין, נחזיר רק את המכשירים שנמצאים בתא שהם מורשים אליו לפחות
-    allowed_section_ids = [section.id for section in current_user.allowed_sections]
+    # אם המשתמש הוא אופרטור, נחזיר רק את המכשירים שה-section שלהם נמצא ברשימת ה-allowed_section_ids של המשתמש   
+    allowed_section_ids = list(current_user.allowed_sections_ids)
+
+    if not allowed_section_ids:
+        return [] # אם אין למשתמש הרשאה אפילו לתא אחד, נחזיר רשימה ריקה במקום לנסות להריץ שאילתה עם רשימת מזהים ריקה שתחזיר שגיאה   
 
     return query.filter(Device.section_id.in_(allowed_section_ids)).all()# נחזיר רק את המכשירים שה-section שלהם נמצא ברשימת ה-allowed_section_ids של המשתמש
 
 
+@router.get("/{device_id}", response_model=DeviceResponse)
+def get_device(device_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+
+    device = db.query(Device).filter(Device.id == device_id).first()
+
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+    
+    #check if the user allowed to see this section
+    if not current_user.has_section_access(device.section_id): # אפשר גם לאפשר למנהלים לראות את כל המכשירים, לפי הצורך  
+       raise HTTPException(status_code=403, detail="Access denied to this device")
+    
+    return device
 
 
 @router.post("/", response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)
-def create_device(device_data: DeviceCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_device(device_data: DeviceCreate, db: Session = Depends(get_db), current_user: User = Depends(require_operator)):
 
     #בדיקה אם המשתמש הוא אדמין של התא שאליו מנסים להוסיף את המכשיר, אם לא נחזיר שגיאה מתאימה
     if not current_user.is_admin_of_section(device_data.section_id):
         raise HTTPException(status_code=403, detail="You don't have permission to add devices to this section")
+    
+    existing = db.query(Device).filter(Device.identifier == device_data.identifier).first()  # בדיקת כפילויות   
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Device with this identifier already exists")
 
     new_device = Device(**device_data.model_dump()) # יצירת אובייקט Device חדש מהנתונים שנשלחו
 
     db.add(new_device)
     db.flush() # שליחת השינויים למסד נתונים כדי לקבל את ה-ID שנוצר למכשיר החדש לפני יצירת רשומת המיקום שלו
+    
     initial_position = DevicePosition(device_id=new_device.id, x_pos=0.0, y_pos=0.0) # יצירת רשומת מיקום ראשונית עם קואורדינטות ברירת מחדל (0,0)
     db.add(initial_position)
 
@@ -56,13 +80,13 @@ def create_device(device_data: DeviceCreate, db: Session = Depends(get_db), curr
         user=current_user.username,
         action="CREATE_DEVICE",
         target=f"Device:{new_device.identifier} (ID:{new_device.id})",
-        details=f"Section ID: {new_device.section_id}, Classification: {new_device.classification}"
+        details=f"Section ID: {new_device.section_id}"
     )
 
     return new_device
 
 @router.patch("/{device_id}", response_model=DeviceResponse)# פונקציה לעדכון פרטי המכשיר, כולל המיקום שלו
-def update_device(device_id: uuid.UUID, device_data: DeviceUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_device(device_id: uuid.UUID, device_data: DeviceUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_operator)):
 
     #find the device
     device = db.query(Device).filter(Device.id == device_id).first()
@@ -73,7 +97,7 @@ def update_device(device_id: uuid.UUID, device_data: DeviceUpdate, db: Session =
     
     #check if the user has permission to update the device (must be admin of the section that the device belongs to)
     if not current_user.is_admin_of_section(device.section_id):
-        raise HTTPException(status_code=403, detail="You don't have permission to update devices in this section")
+        raise HTTPException(status_code=403, detail="You don't have admin permission to update devices in this section")
     
     #השתמשנו ב-model_dump עם exclude_unset כדי לקבל רק את השדות שנשלחו בבקשה לעדכון, וכך נוכל לעדכן רק את השדות האלה מבלי לגעת בשאר השדות של המכשיר
     update_data = device_data.model_dump(exclude_unset=True)
@@ -124,8 +148,9 @@ def update_device(device_id: uuid.UUID, device_data: DeviceUpdate, db: Session =
 
     return device
 
+
 @router.put("/{device_id}/position")# פונקציה לעדכון מיקום המכשיר, מקבלת את ה-ID של המכשיר ואת הקואורדינטות החדשות (x ו-y) בעזרת פרמטרים של השאילתה
-def update_device_position(device_id: uuid.UUID, x: float, y: float, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_device_position(device_id: uuid.UUID, x: float, y: float, db: Session = Depends(get_db), current_user: User = Depends(require_operator)):
 
     #find the device
     device = db.query(Device).filter(Device.id == device_id).first()
@@ -137,7 +162,7 @@ def update_device_position(device_id: uuid.UUID, x: float, y: float, db: Session
 
     #check if the user has permission to update the device position (must be admin of the section that the device belongs to)
     if not current_user.is_admin_of_section(device.section_id):
-        raise HTTPException(status_code=403, detail="You don't have permission to update devices in this section")
+        raise HTTPException(status_code=403, detail="You don't have admin permission to update devices in this section")
     
     #נחפש אם כבר יש רשומה של מיקום למכשיר הזה, אם כן נעדכן אותה, אם לא ניצור רשומה חדשה עם המיקום החדש
     position = db.query(DevicePosition).filter(DevicePosition.device_id == device_id).first()
@@ -164,7 +189,7 @@ def update_device_position(device_id: uuid.UUID, x: float, y: float, db: Session
 
 
 @router.delete("/{device_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_device(device_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def delete_device(device_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_operator)):
 
     device = db.query(Device).filter(Device.id == device_id).first()
 
@@ -172,16 +197,17 @@ def delete_device(device_id: uuid.UUID, db: Session = Depends(get_db), current_u
         raise HTTPException(status_code=404, detail="Device not found")
     
     if not current_user.is_admin_of_section(device.section_id):
-        raise HTTPException(status_code=403, detail="You don't have permission to delete devices in this section")
+        raise HTTPException(status_code=403, detail="You don't have admin permission to delete devices in this section")
     
     # Audit logging before deletion
     LoggerManager.log_audit(
         user=current_user.username,
         action="DELETE_DEVICE",
         target=f"Device:{device.identifier} (ID:{device.id})",
-        details=f"Section ID: {device.section_id}, Classification: {device.classification}"
+        details=f"Section ID: {device.section_id}"
     )
 
     db.delete(device)
     db.commit()
+    
     return {"message": "Device deleted successfully"}

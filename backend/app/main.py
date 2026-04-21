@@ -1,8 +1,13 @@
+import sys
+import os
+import time
+
 from fastapi import FastAPI, Request  # ייבוא FastAPI כדי להגדיר את היישום
 from fastapi.middleware.cors import CORSMiddleware  # ייבוא CORS Middleware לניהול מדיניות CORS
-from app.db.session import Base  # בסיס המודלים של SQLAlchemy
-from app.db.session import engine  # מנוע SQLAlchemy מההגדרות של DB
+from jose import JWTError
+from sqlalchemy.orm import Session
 
+from app.db.session import Base, engine, SessionLocal  # בסיס המודלים של SQLAlchemy
 from app.api.v1.endpoints.auth import router as auth_router  # נתיב Auth
 from app.api.v1.endpoints.users import router as users_router  # נתיב Users
 from app.api.v1.endpoints.sites import router as sites_router
@@ -13,19 +18,18 @@ import app.models.user  # מוודא שמודלים של משתמש נטענים
 import app.models.site
 import app.models.device  # מוודא שמודלים של אתר נטענים לאלמנטים של ORM (מיגרציות ושאילתות)
 import app.models.group  # מוודא שמודלים של קבוצה נטענים לאלמנטים של ORM (מיגרציות ושאילתות)
+import app.models.token_blacklist
 
-import sys
-import os
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logger_manager import LoggerManager
-import time
 from app.core.jwt import decode_access_token
-from jose import JWTError
+from app.models.user import User
 
 Base.metadata.create_all(bind=engine)  # יצירת טבלאות במסד הנתונים לפי המודלים שהוגדרו ב-SQLAlchemy
 
 
-app = FastAPI()  # יצירת אינסטנס של FastAPI עבור האפליקציה
+app = FastAPI(title="CUCM Portal API", description="Phone managment system for cucm")  # יצירת אינסטנס של FastAPI עבור האפליקציה
 
 
 app.add_middleware(
@@ -34,17 +38,48 @@ app.add_middleware(
     allow_credentials=True,  # מאפשר שליחת עוגיות ואישורים  
     allow_methods=["*"],  # מאפשר את כל שיטות ה-HTTP
     allow_headers=["*"],  # מאפשר את כל הכותרות
-)  # הוספת Middleware לניהול CORS כדי לאפשר גישה בין דומיינים שונים 
-
-
-app.add_event_handler("startup", lambda: engine.connect())  # חיבור למסד הנתונים בעת הפעלת היישום   
+)  # הוספת Middleware לניהול CORS כדי לאפשר גישה בין דומיינים שונים   
 
 
 @app.on_event("startup")
 async def startup_event():
 
     LoggerManager.initialize(path_prefix="logs")
-    LoggerManager.get_logger().info("--system started--")
+    LoggerManager.get_logger().info("-- CUCM Portal satarted --")
+
+
+def _get_user_info_from_request(request: Request) -> str:
+    
+    token = request.cookies.get("access_token")
+    if not token:
+        auth_header = request.headers.get("authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+ 
+    if not token:
+        return "Anonymous"
+ 
+    try:
+        payload = decode_access_token(token)
+        user_id = payload.get("sub")
+        if not user_id:
+            return "Anonymous"
+ 
+        # שליפת שם ורמת המשתמש מה-DB
+        db: Session = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            if user:
+                return f"{user.username} [{user.role.value}]"
+            return f"ID:{user_id} [unknown]"
+        finally:
+            db.close()
+ 
+    except JWTError:
+        return "Anonymous [invalid token]"
+    except Exception:
+        return "Anonymous [error]"
+ 
 
 
 @app.middleware("http")
@@ -57,17 +92,7 @@ async def audit_log_middleware(request: Request, call_next):
     client_ip = request.client.host
 
     # Try to extract user from Authorization header
-    user_info = "Anonymous"
-    auth_header = request.headers.get("authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-        try:
-            payload = decode_access_token(token)
-            user_id = payload.get("sub")
-            if user_id:
-                user_info = f"User:{user_id}"
-        except JWTError:
-            pass  # Invalid token, keep as Anonymous
+    user_info = _get_user_info_from_request(request)
 
     response = await call_next(request)
 
@@ -95,5 +120,27 @@ app.include_router(devices_router, prefix="/api/v1/devices", tags=["devices"])
 
 @app.get("/")
 def read_root():
-    return {"message": "welcome to cucm live"}  # נקודת קצה בסיסית שמחזירה הודעת שלום עולם   
+    return {"message": "CUCM Portal API is running"}  # נקודת קצה בסיסית שמחזירה הודעת שלום עולם   
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+@app.get("/health/db")
+def health_check():
+
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "connected"}
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
+ 
+
+
+
+
 

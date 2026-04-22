@@ -7,13 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from app.db.session import engine, SessionLocal
+from app.db.session import Base, engine, SessionLocal
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users import router as users_router
 from app.api.v1.endpoints.sites import router as sites_router
 from app.api.v1.endpoints.groups import router as groups_router
 from app.api.v1.endpoints.devices import router as devices_router
 
+# חשוב: כל המודלים חייבים להיטען לפני create_all
 import app.models.user
 import app.models.site
 import app.models.device
@@ -24,6 +25,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logger_manager import LoggerManager
 from app.core.jwt import decode_access_token
 from app.models.user import User
+
+# יצירת טבלאות חדשות אם לא קיימות (לא מחליף alembic)
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CUCM Portal API", description="Phone management system for CUCM")
 
@@ -115,7 +119,7 @@ def health_check():
 
 
 @app.get("/health/db")
-def db_health_check():  # ← תוקן: היו שתי פונקציות בשם health_check - קרסות
+def db_health_check():
     from sqlalchemy import text
     try:
         with engine.connect() as conn:

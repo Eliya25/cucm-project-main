@@ -9,15 +9,15 @@ class TokenResponse(BaseModel):  # תשובת טוקן
     role: UserRole  # תפקיד המשתמש (SUPERADMIN, ADMIN, OPERATOR או VIEWER)
 
 
-class LoginRequest(BaseModel):  # בקשת התחברות
-    username: str  # שם משתמש
-    password: str  # סיסמה
-    refresh_token: str | None = None
-#צריך לבדוק מה קורה
+# class LoginRequest(BaseModel):  # בקשת התחברות
+#     username: str  # שם משתמש
+#     password: str  # סיסמה
+#     refresh_token: str | None = None
+# #צריך לבדוק מה קורה
 
-class LogoutRequest(BaseModel):
-    pass
+# class LogoutRequest(BaseModel):
+#     pass
 
 
-class RefreshTokenRequest(BaseModel):  # בקשת טוקן רענון    
-    refresh_token: str  # טוקן רענון לשימוש בקבלת טוקן חדש  
+# class RefreshTokenRequest(BaseModel):  # בקשת טוקן רענון    
+#     refresh_token: str  # טוקן רענון לשימוש בקבלת טוקן חדש  

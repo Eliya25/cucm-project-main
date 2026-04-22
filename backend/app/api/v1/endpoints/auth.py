@@ -47,6 +47,7 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
 
     return  TokenResponse(
         access_token=access_token,
+        refresh_token=refresh_token,
         token_type="bearer",
         role=user.role,
         username=user.username
@@ -66,7 +67,7 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/refresh", response_model=TokenResponse)
-def refresh_token(request: Request, response: Response, body: LoginRequest | None = None, db: Session = Depends(get_db)):
+def get_refresh_token(request: Request, response: Response, body: LoginRequest | None = None, db: Session = Depends(get_db)):
 
     token = request.cookies.get("refresh_token")
 
@@ -100,6 +101,7 @@ def refresh_token(request: Request, response: Response, body: LoginRequest | Non
 
         return TokenResponse(
             access_token=new_access_token,
+            refresh_token=token,
             token_type="bearer",
             role=user.role,
             username=user.username,

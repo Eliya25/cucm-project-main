@@ -1,6 +1,6 @@
 from enum import Enum
 
-class UserRole(Enum):
+class UserRole(str, Enum):
 
     """
     היררכיית הרשאות:
@@ -9,7 +9,7 @@ class UserRole(Enum):
     OPERATOR    → יכול להוסיף/לערוך Devices בתאים שלו
     VIEWER      → צופה בלבד
     """
-    
+
     SUPERADMIN = "superadmin"
     ADMIN = "admin"
     OPERATOR = "operator"

@@ -77,23 +77,11 @@ def get_site(site_id: uuid.UUID, db: Session = Depends(get_db), current_user: Us
         raise HTTPException(status_code=404, detail="Site not found")
     
     # 1. אם המשתמש הוא אדמין - הוא רואה הכל
-    if not current_user.role in [UserRole.SUPERADMIN, UserRole.ADMIN]: # אפשר גם לאפשר למנהלים לראות את כל האתרים, לפי הצורך 
-        allowed_sections = {section.site_id for section in current_user.allowed_sections}   
+    if current_user.role not in [UserRole.SUPERADMIN, UserRole.ADMIN]: # אפשר גם לאפשר למנהלים לראות את כל האתרים, לפי הצורך 
+        allowed_site_ids = {section.site_id for section in current_user.allowed_sections}   
 
         if site.id not in allowed_site_ids:
-            raise HTTPException(status_code=403, detail="You don't have permission to view this site")
-        return site
-    
-    # 2. אם המשתמש הוא רגיל - הוא רואה רק את האתרים שיש לו גישה אליהם דרך הקבוצות שלו
-    allowed_sections = current_user.allowed_sections
-
-    if not allowed_sections:
-        raise HTTPException(status_code=403, detail="You don't have permission to view this site")
-    
-    allowed_site_ids = {section.site_id for section in allowed_sections}
-
-    if site.id not in allowed_site_ids:
-        raise HTTPException(status_code=403, detail="Access denied")
+            raise HTTPException(status_code=403, detail="Access denied")
     
     return site
 

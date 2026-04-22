@@ -52,13 +52,13 @@ class User(Base):
         return sections
     
     @property
-    def allowed_sections_ids(self) -> set[uuid.UUID]:
+    def allowed_section_ids(self) -> set[uuid.UUID]:
 
         return {section.id for section in self.allowed_sections}
     
     def is_admin_of_section(self, section_id: uuid.UUID) -> bool:
         
-        if self.role == [UserRole.SUPERADMIN, UserRole.ADMIN]:
+        if self.role in [UserRole.SUPERADMIN, UserRole.ADMIN]:
             return True
         
         for link in self.user_groups_links:

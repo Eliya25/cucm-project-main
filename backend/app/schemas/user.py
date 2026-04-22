@@ -7,16 +7,14 @@ class UserCreate(BaseModel):
     username: str
     password: str
     role: UserRole = UserRole.VIEWER
-    section_ids: list[uuid.UUID] = []
 
 
 
 class UserUpdate(BaseModel):
-    username: str 
-    password: str 
-    role: UserRole = UserRole.VIEWER
+    username: str | None = None
+    password: str | None = None
+    role: UserRole | None = None
     is_active: bool | None = None
-    section_ids: list[uuid.UUID] | None = None
 
 
 

@@ -7,13 +7,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.session import Base
-from app.models.site import Site
 from app.models.roles import UserRole
 
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from backend.app.models.user import User
-    from backend.app.models.site import Section, Site
+    from app.models.user import User
+    from app.models.site import Section, Site
 
 class Group(Base):
     __tablename__ = "groups"

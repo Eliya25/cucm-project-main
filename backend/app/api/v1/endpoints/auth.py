@@ -1,63 +1,58 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, Request  # נתיבי API וטעינת תלות
-from sqlalchemy.orm import Session  # טיפוס session ל-DB
-from fastapi.security import OAuth2PasswordRequestForm  # פורמט בקשת התחברות OAuth2
+from fastapi import APIRouter, Depends, HTTPException, Response, Request
+from sqlalchemy.orm import Session
+from fastapi.security import OAuth2PasswordRequestForm
 from jose import JWTError
 
-from app.db.session import get_db  # הפונקציה שמייצרת session
-from app.models.user import User  # מודל משתמש
-from app.models.token_blacklist import TokenBlacklist  # מודל לטוקנים שחורגים   
-from app.core.security import verify_password  # וולידציה של סיסמא
-from app.core.jwt import create_access_token, create_refresh_token , decode_refresh_token, decode_access_token, get_token_expire  # יצירת tokens
-from app.schemas.auth import TokenResponse, LoginRequest  # סכמות של auth
-from app.core.dependencies import get_current_user  # תלות של משתמש מאומתn
+from app.db.session import get_db
+from app.models.user import User
+from app.models.token_blacklist import TokenBlacklist
+from app.core.security import verify_password
+from app.core.jwt import create_access_token, create_refresh_token, decode_refresh_token, get_token_expire
+from app.schemas.auth import TokenResponse, LogoutRequest, RefreshTokenRequest
+from app.core.dependencies import get_current_user
 from logger_manager import LoggerManager
 
-router = APIRouter()  # יצירת ניתוב מודולרי
+router = APIRouter()
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-
-    # מחפש משתמש במאגר לפי שם משתמש
+def login(
+    response: Response,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db)
+):
     user = db.query(User).filter(User.username == form_data.username).first()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
-        # לא נמצא משתמש מתאום
         raise HTTPException(status_code=401, detail="Wrong username or password")
 
     if not user.is_active:
-        # משתמש מושבת
         raise HTTPException(status_code=403, detail="User is disabled")
 
-    access_token = create_access_token(data={"sub": str(user.id)})  # יצירת token גישה
-    refresh_token = create_refresh_token(data={"sub": str(user.id)})  # יצירת token רענון
+    access_token = create_access_token(data={"sub": str(user.id)})
+    refresh_token = create_refresh_token(data={"sub": str(user.id)})
 
+    # שני הטוקנים יושבים ב-httponly cookies - לא חשופים ל-JavaScript
+    response.set_cookie(key="access_token",  value=access_token,  httponly=True, max_age=1800,      secure=False, samesite="lax")
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, max_age=86400 * 7, secure=False, samesite="strict")
 
-    response.set_cookie(key="access_token", value=access_token, httponly=True, max_age=1800, secure=False, samesite="lax")  # שמירת token גישה בעוגייה  
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, max_age=86400 * 7, secure=False, samesite="strict")  # שמירת token רענון בעוגייה   
-
-
-    # Audit logging
     LoggerManager.log_audit(
-        user=user.username,
+        user=user.username, 
         action="LOGIN",
         target=f"User:{user.username} (ID:{user.id})",
         details=f"Role: {user.role}"
     )
 
-    return  TokenResponse(
+    return TokenResponse(
         access_token=access_token,
-        refresh_token=refresh_token,
         token_type="bearer",
         role=user.role,
         username=user.username
     )
 
 
-
 @router.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
-    # מחזיר מידע בסיסי על המשתמש הנוכחי
     return {
         "id": str(current_user.id),
         "username": current_user.username,
@@ -67,15 +62,20 @@ def get_me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/refresh", response_model=TokenResponse)
-def get_refresh_token(request: Request, response: Response, body: LoginRequest | None = None, db: Session = Depends(get_db)):
-
+def refresh_token(
+    request: Request,
+    response: Response,
+    body: RefreshTokenRequest | None = None,
+    db: Session = Depends(get_db)
+):
+    # קודם cookie, אחר כך body
     token = request.cookies.get("refresh_token")
-
-    if not token and body: 
+    if not token and body:
         token = body.refresh_token
     if not token:
         raise HTTPException(status_code=401, detail="Refresh token required")
-    
+
+    # בדיקה שהטוקן לא בוטל
     blacklisted = db.query(TokenBlacklist).filter(TokenBlacklist.token == token).first()
 
     if blacklisted:
@@ -84,61 +84,60 @@ def get_refresh_token(request: Request, response: Response, body: LoginRequest |
     try:
         payload = decode_refresh_token(token)
         user_id = payload.get("sub")
-
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
-        
-        #check if the user stil exists and active
+
         user = db.query(User).filter(User.id == user_id).first()
         if not user or not user.is_active:
             raise HTTPException(status_code=401, detail="User not found or inactive")
-        
-        #create new access token
 
         new_access_token = create_access_token(data={"sub": str(user.id)})
 
-        response.set_cookie(key="access_token", value=new_access_token, httponly=True, max_age=1800, secure=False, samesite="lax")  # עדכון עוגיית token גישה עם הטוקן החדש 
+        response.set_cookie(key="access_token", value=new_access_token, httponly=True, max_age=1800, secure=False, samesite="lax")
+
 
         return TokenResponse(
             access_token=new_access_token,
-            refresh_token=token,
             token_type="bearer",
             role=user.role,
-            username=user.username,
+            username=user.username
         )
+    
+        
     except JWTError:
         raise HTTPException(status_code=401, detail="Refresh token expired or invalid")
-    
+
 
 @router.post("/logout")
-def logout(request: Request, response: Response, body: LoginRequest | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-
+def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # קודם cookie, אחר כך body
     token = request.cookies.get("refresh_token")
-
-    if not token and body:
-        token = body.refresh_token
 
     if token:
         existing = db.query(TokenBlacklist).filter(TokenBlacklist.token == token).first()
-
+        
         if not existing:
             try:
                 expires_at = get_token_expire(token)
-                blacklisted = TokenBlacklist(token=token, expires_at=expires_at)
-                db.add(blacklisted)
+                db.add(TokenBlacklist(token=token, expires_at=expires_at))
                 db.commit()
             except JWTError:
-                pass  # אם הטוקן לא תקין, פשוט לא נוסיף אותו לשחור
+                pass  
 
-
+    # מחיקת cookies בכל מקרה
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
 
     LoggerManager.log_audit(
-        user=current_user.username,
+        user=current_user.username, 
         action="LOGOUT",
         target=f"User:{current_user.username} (ID:{current_user.id})",
-        details="User logged out and session tokens revoked"
+        details="Session terminated"
     )
 
     return {"message": "Logged out successfully"}

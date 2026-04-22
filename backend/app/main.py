@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError
 from sqlalchemy.orm import Session
 
-from app.db.session import Base, engine, SessionLocal
+from app.db.session import engine, SessionLocal
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.users import router as users_router
 from app.api.v1.endpoints.sites import router as sites_router
@@ -24,8 +24,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from logger_manager import LoggerManager
 from app.core.jwt import decode_access_token
 from app.models.user import User
-
-Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="CUCM Portal API", description="Phone management system for CUCM")
 

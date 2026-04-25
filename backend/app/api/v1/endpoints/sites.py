@@ -14,6 +14,10 @@ router = APIRouter()
 
 # --- פונקציות יצירה (נשארות רק ל-Admin) ---
 
+# ══════════════════════════════════════════════════════
+#  SITES
+# ══════════════════════════════════════════════════════
+
 @router.post("/", response_model=SiteResponse)
 def create_site(site_data: SiteCreate, db: Session = Depends(get_db), current_user: User = Depends(require_admin)):
     existing = db.query(Site).filter(Site.name == site_data.name).first()
@@ -47,68 +51,6 @@ def get_sites(db: Session = Depends(get_db), current_user: User = Depends(get_cu
     allowed_site_ids = {s.site_id for s in allowed_sections}
     return db.query(Site).filter(Site.id.in_(allowed_site_ids)).all()
 
-@router.get("/{site_id}", response_model=SiteResponse)
-def get_site(site_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    site = db.query(Site).filter(Site.id == site_id).first()
-    if not site:
-        raise HTTPException(status_code=404, detail="Site not found")
- 
-    if current_user.role not in [UserRole.SUPERADMIN, UserRole.ADMIN]:
-        allowed_site_ids = {s.site_id for s in current_user.allowed_sections}
-        if site_id not in allowed_site_ids:
-            raise HTTPException(status_code=403, detail="Access denied")
- 
-    return site
-
-
-@router.patch("/{site_id}", response_model=SiteResponse)
-def update_site(site_id: uuid.UUID, site_data: SiteUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
-    site = db.query(Site).filter(Site.id == site_id).first()
-    if not site:
-        raise HTTPException(status_code=404, detail="Site not found")
- 
-    old_name, old_desc = site.name, site.description
- 
-    if site_data.name is not None:
-        site.name = site_data.name
-    if site_data.description is not None:
-        site.description = site_data.description
- 
-    db.commit()
-    db.refresh(site)
- 
-    changes = []
-    if old_name != site.name: changes.append(f"name: {old_name} → {site.name}")
-    if old_desc != site.description: changes.append("description updated")
- 
-    LoggerManager.log_audit(
-        user=current_user.username, 
-        action="UPDATE_SITE",
-        target=f"Site:{site.name} (ID:{site.id})", 
-        details=f"Changes: {', '.join(changes)}"
-    )
-
-    return site
-
-@router.delete("/{site_id}")
-def delete_site(site_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
-    site = db.query(Site).filter(Site.id == site_id).first()
-    if not site:
-        raise HTTPException(status_code=404, detail="Site not found")
- 
-    LoggerManager.log_audit(
-        user=current_user.username, 
-        action="DELETE_SITE",
-        target=f"Site:{site.name} (ID:{site.id})", 
-        details=f"Description: {site.description}"
-    )
-
-    db.delete(site)
-    db.commit()
-
-    return {"message": f"Site '{site.name}' and all its sections deleted successfully"}
- 
- 
 
 
 # ══════════════════════════════════════════════════════
@@ -195,5 +137,69 @@ def delete_section(section_id: uuid.UUID, db: Session = Depends(get_db), current
     return {"message": f"Section '{section.name}' deleted successfully"}
  
 
+
+
+@router.get("/{site_id}", response_model=SiteResponse)
+def get_site(site_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    site = db.query(Site).filter(Site.id == site_id).first()
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+ 
+    if current_user.role not in [UserRole.SUPERADMIN, UserRole.ADMIN]:
+        allowed_site_ids = {s.site_id for s in current_user.allowed_sections}
+        if site_id not in allowed_site_ids:
+            raise HTTPException(status_code=403, detail="Access denied")
+ 
+    return site
+
+
+@router.patch("/{site_id}", response_model=SiteResponse)
+def update_site(site_id: uuid.UUID, site_data: SiteUpdate, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
+    site = db.query(Site).filter(Site.id == site_id).first()
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+ 
+    old_name, old_desc = site.name, site.description
+ 
+    if site_data.name is not None:
+        site.name = site_data.name
+    if site_data.description is not None:
+        site.description = site_data.description
+ 
+    db.commit()
+    db.refresh(site)
+ 
+    changes = []
+    if old_name != site.name: changes.append(f"name: {old_name} → {site.name}")
+    if old_desc != site.description: changes.append("description updated")
+ 
+    LoggerManager.log_audit(
+        user=current_user.username, 
+        action="UPDATE_SITE",
+        target=f"Site:{site.name} (ID:{site.id})", 
+        details=f"Changes: {', '.join(changes)}"
+    )
+
+    return site
+
+@router.delete("/{site_id}")
+def delete_site(site_id: uuid.UUID, db: Session = Depends(get_db), current_user: User = Depends(require_super_admin)):
+    site = db.query(Site).filter(Site.id == site_id).first()
+    if not site:
+        raise HTTPException(status_code=404, detail="Site not found")
+ 
+    LoggerManager.log_audit(
+        user=current_user.username, 
+        action="DELETE_SITE",
+        target=f"Site:{site.name} (ID:{site.id})", 
+        details=f"Description: {site.description}"
+    )
+
+    db.delete(site)
+    db.commit()
+
+    return {"message": f"Site '{site.name}' and all its sections deleted successfully"}
+ 
+ 
 
 

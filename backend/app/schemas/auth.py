@@ -7,17 +7,3 @@ class TokenResponse(BaseModel):  # תשובת טוקן
     token_type: str = "bearer"  # סוג האימות
     username: str  # שם המשתמש של המשתמש המחובר
     role: UserRole  # תפקיד המשתמש (SUPERADMIN, ADMIN, OPERATOR או VIEWER)
-
-
-# class LoginRequest(BaseModel):  # בקשת התחברות
-#     username: str  # שם משתמש
-#     password: str  # סיסמה
-#     refresh_token: str | None = None
-# #צריך לבדוק מה קורה
-
-# class LogoutRequest(BaseModel):
-#     pass
-
-
-# class RefreshTokenRequest(BaseModel):  # בקשת טוקן רענון    
-#     refresh_token: str  # טוקן רענון לשימוש בקבלת טוקן חדש  

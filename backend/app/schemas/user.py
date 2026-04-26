@@ -17,7 +17,6 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
 
 
-
 class UserResponse(BaseModel):
     id: uuid.UUID
     username: str
@@ -25,4 +24,7 @@ class UserResponse(BaseModel):
     is_active: bool
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+
+class ChangePassowordRequest(BaseModel):
+    current_password: str
+    new_password: str

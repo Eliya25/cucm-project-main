@@ -5,9 +5,9 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.user import User
 from app.models.roles import UserRole
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.core.dependencies import require_super_admin, require_admin, get_current_user
-from app.schemas.user import UserCreate, UserResponse, UserUpdate
+from app.schemas.user import UserCreate, UserResponse, UserUpdate, ChangePassowordRequest
 from logger_manager import LoggerManager
 
 
@@ -125,6 +125,43 @@ def update_user(user_id: uuid.UUID, user_data: UserUpdate, db: Session = Depends
     )
 
     return user
+
+
+
+# ── שינוי סיסמה אישי (המשתמש המחובר) ────────────────────────────
+@router.patch("/me/change-password")
+def change_my_password(
+    body: ChangePassowordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)  # כל משתמש מחובר
+):
+    """
+    כל משתמש יכול לשנות את הסיסמה שלו בלבד.
+    חייב לאמת את הסיסמה הנוכחית קודם.
+    """
+    # אימות סיסמה נוכחית
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+ 
+    # וולידציה על הסיסמה החדשה
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+ 
+    if body.current_password == body.new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from current password")
+ 
+    current_user.hashed_password = hash_password(body.new_password)
+
+    db.commit()
+ 
+    LoggerManager.log_audit(
+        user=current_user.username, 
+        action="CHANGE_PASSWORD",
+        target=f"User:{current_user.username} (ID:{current_user.id})",
+        details="Password changed by user"
+    )
+ 
+    return {"message": "Password changed successfully"}
 
 
 @router.delete("/{user_id}")

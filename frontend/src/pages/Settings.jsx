@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Moon, Sun, Bell, Shield, Key, Save, Monitor, Globe, CheckCircle } from 'lucide-react';
+import { Bell, Shield, Key, Save, Monitor, Globe, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api.js';
 
-// ── Toast הודעה ───────────────────────────────────────────────────
 const Toast = ({ msg }) => (
   <div className="fixed top-6 right-6 z-50 flex items-center gap-3 bg-gray-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-gray-700">
     <CheckCircle size={18} className="text-green-400 shrink-0" />
@@ -11,7 +10,6 @@ const Toast = ({ msg }) => (
   </div>
 );
 
-// ── כותרת Section ─────────────────────────────────────────────────
 const Section = ({ title, icon: Icon, children, badge }) => (
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
     <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
@@ -29,7 +27,6 @@ const Section = ({ title, icon: Icon, children, badge }) => (
   </div>
 );
 
-// ── שורת הגדרה ────────────────────────────────────────────────────
 const Row = ({ label, description, children }) => (
   <div className="flex items-center justify-between">
     <div>
@@ -40,7 +37,6 @@ const Row = ({ label, description, children }) => (
   </div>
 );
 
-// ── Toggle ────────────────────────────────────────────────────────
 const Toggle = ({ checked, onChange, disabled }) => (
   <button
     type="button"
@@ -55,31 +51,22 @@ const Toggle = ({ checked, onChange, disabled }) => (
   </button>
 );
 
-// ── הדף הראשי ─────────────────────────────────────────────────────
 const Settings = () => {
   const { user } = useAuth();
+  // user מכיל: { username, role } בלבד — id לא נשמר ב-AuthContext
+  // לכן שינוי סיסמה עובד דרך /me/change-password ולא דרך /{id}
 
-  // Dark Mode
-  const [darkMode, setDarkMode] = useState(
-    document.documentElement.classList.contains('dark')
-  );
-
-  // שפה
-  const [language, setLanguage] = useState(
-    localStorage.getItem('language') || 'he'
-  );
-
-  // שינוי סיסמה
-  const [pwForm,   setPwForm]   = useState({ current: '', next: '', confirm: '' });
-  const [pwError,  setPwError]  = useState('');
-  const [toast,    setToast]    = useState('');
+  const [darkMode,  setDarkMode]  = useState(document.documentElement.classList.contains('dark'));
+  const [language,  setLanguage]  = useState(localStorage.getItem('language') || 'he');
+  const [pwForm,    setPwForm]    = useState({ current: '', next: '', confirm: '' });
+  const [pwError,   setPwError]   = useState('');
+  const [toast,     setToast]     = useState('');
 
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(''), 3000);
   };
 
-  // ── Dark Mode - משנה class על html ───────────────────────────────
   const handleDarkMode = (val) => {
     setDarkMode(val);
     if (val) {
@@ -92,7 +79,6 @@ const Settings = () => {
     showToast(val ? '🌙 Dark mode הופעל' : '☀️ Light mode הופעל');
   };
 
-  // ── שפה - משנה dir על body ───────────────────────────────────────
   const handleLanguage = (val) => {
     setLanguage(val);
     localStorage.setItem('language', val);
@@ -101,7 +87,6 @@ const Settings = () => {
     showToast(val === 'he' ? '🇮🇱 שפה שונתה לעברית' : '🇺🇸 Language changed to English');
   };
 
-  // ── שינוי סיסמה ──────────────────────────────────────────────────
   const handleChangePassword = async (e) => {
     e.preventDefault();
     setPwError('');
@@ -112,9 +97,13 @@ const Settings = () => {
     if (pwForm.next.length < 8) {
       setPwError('הסיסמה חייבת להיות לפחות 8 תווים'); return;
     }
+    if (pwForm.current === pwForm.next) {
+      setPwError('הסיסמה החדשה חייבת להיות שונה מהנוכחית'); return;
+    }
 
     try {
-      await api.patch(`/api/v1/users/${user?.id}/password`, {
+      // endpoint ייעודי לשינוי סיסמה אישי — לא דורש id
+      await api.patch('/api/v1/users/me/change-password', {
         current_password: pwForm.current,
         new_password: pwForm.next,
       });
@@ -125,11 +114,9 @@ const Settings = () => {
     }
   };
 
-  // טעינה ראשונית - מחיל העדפות שמורות
   useEffect(() => {
     const savedDark = localStorage.getItem('darkMode') === 'true';
     const savedLang = localStorage.getItem('language') || 'he';
-
     if (savedDark) document.documentElement.classList.add('dark');
     document.documentElement.setAttribute('lang', savedLang);
     document.body.setAttribute('dir', savedLang === 'he' ? 'rtl' : 'ltr');
@@ -151,24 +138,16 @@ const Settings = () => {
         </Row>
         <Row label="שפת ממשק" description="שפה וכיוון טקסט">
           <div className="flex gap-2">
-            <button
-              onClick={() => handleLanguage('he')}
+            <button onClick={() => handleLanguage('he')}
               className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all ${
-                language === 'he'
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
-              }`}
-            >
+                language === 'he' ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`}>
               🇮🇱 עברית
             </button>
-            <button
-              onClick={() => handleLanguage('en')}
+            <button onClick={() => handleLanguage('en')}
               className={`px-4 py-2 rounded-xl text-sm font-medium border transition-all ${
-                language === 'en'
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
-              }`}
-            >
+                language === 'en' ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'}`}>
               🇺🇸 English
             </button>
           </div>
@@ -176,22 +155,16 @@ const Settings = () => {
       </Section>
 
       {/* התראות */}
-      <Section title="התראות" icon={Bell} badge="Coming Soon - נדרש CUCM">
-        <Row
-          label="התראות טלפונים נפולים"
-          description="התראה כאשר טלפון יוצא ממצב Online - דורש חיבור CUCM"
-        >
-          <Toggle checked={false} onChange={() => {}} disabled={true} />
+      <Section title="התראות" icon={Bell} badge="Coming Soon — נדרש CUCM">
+        <Row label="התראות טלפונים נפולים" description="דורש חיבור CUCM">
+          <Toggle checked={false} onChange={() => {}} disabled />
         </Row>
-        <Row
-          label="התראות מערכת"
-          description="הודעות על שינויים במערכת - יהיה זמין עם WebSocket"
-        >
-          <Toggle checked={false} onChange={() => {}} disabled={true} />
+        <Row label="התראות מערכת" description="יהיה זמין עם WebSocket">
+          <Toggle checked={false} onChange={() => {}} disabled />
         </Row>
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
           <p className="text-xs text-amber-700 font-medium">
-            💡 התראות יהיו זמינות בשלב הבא לאחר שילוב CUCM API
+            💡 התראות יהיו זמינות לאחר שילוב CUCM API
           </p>
         </div>
       </Section>
@@ -219,24 +192,15 @@ const Settings = () => {
       {/* שינוי סיסמה */}
       <Section title="שינוי סיסמה" icon={Key}>
         <form onSubmit={handleChangePassword} className="space-y-3">
-          <input
-            type="password" placeholder="סיסמה נוכחית" required
+          <input type="password" placeholder="סיסמה נוכחית" required
             className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-            value={pwForm.current}
-            onChange={e => setPwForm({ ...pwForm, current: e.target.value })}
-          />
-          <input
-            type="password" placeholder="סיסמה חדשה (מינימום 8 תווים)" required
+            value={pwForm.current} onChange={e => setPwForm({ ...pwForm, current: e.target.value })} />
+          <input type="password" placeholder="סיסמה חדשה (מינימום 8 תווים)" required
             className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-            value={pwForm.next}
-            onChange={e => setPwForm({ ...pwForm, next: e.target.value })}
-          />
-          <input
-            type="password" placeholder="אימות סיסמה חדשה" required
+            value={pwForm.next} onChange={e => setPwForm({ ...pwForm, next: e.target.value })} />
+          <input type="password" placeholder="אימות סיסמה חדשה" required
             className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500"
-            value={pwForm.confirm}
-            onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })}
-          />
+            value={pwForm.confirm} onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })} />
           {pwError && <p className="text-sm text-red-500">{pwError}</p>}
           <button type="submit"
             className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition-all text-sm">

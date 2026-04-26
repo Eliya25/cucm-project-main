@@ -25,6 +25,6 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
-class ChangePassowordRequest(BaseModel):
+class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
